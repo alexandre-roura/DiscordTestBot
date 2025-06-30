@@ -1,6 +1,6 @@
 # 🤖 Bot Discord - Architecture Modulaire
 
-Bot Discord moderne avec architecture modulaire et typage fort. Intégration avec l'API du plugin **Plan** pour Minecraft et système de killfeed en temps réel.
+Bot Discord moderne avec architecture Cogs et typage fort. Intégration avec l'API du plugin **Plan** pour Minecraft et système de killfeed en temps réel.
 
 ## 🏗️ Architecture
 
@@ -10,9 +10,9 @@ DiscordTestBot/
 ├── api/                       # Clients API externes
 │   ├── minecraft_client.py    # Client API Plan
 │   └── models.py              # Modèles de données typés
-├── commands/                  # Gestionnaires de commandes
-│   ├── minecraft_commands.py  # Commandes Minecraft
-│   └── moderation_commands.py # Commandes de modération
+├── cogs/                      # Cogs Discord.py
+│   ├── minecraft.py           # Cog pour les commandes Minecraft
+│   └── moderation.py          # Cog pour les commandes de modération
 ├── utils/                     # Utilitaires
 │   ├── helpers.py             # Fonctions utilitaires
 │   └── killfeed_manager.py    # Gestionnaire de killfeed
@@ -23,7 +23,7 @@ DiscordTestBot/
 
 ## ✨ Fonctionnalités
 
-### 🎮 Commandes Minecraft
+### 🎮 Commandes Minecraft (MinecraftCog)
 
 #### 📊 Statistiques et Classements
 
@@ -58,12 +58,12 @@ DiscordTestBot/
 - 📏 Affichage de la distance de tir
 - ⏰ Horodatage des événements
 
-### 🛡️ Modération
+### 🛡️ Modération (ModerationCog)
 
-- `/warn <utilisateur>` - Avertir
-- `/ban <utilisateur> <raison>` - Bannir (avec permissions)
-- `/unban <user_id>` - Débannir (avec permissions)
-- `/kick <utilisateur> <raison>` - Expulser
+- `/warn <utilisateur>` - Avertir (nécessite `kick_members`)
+- `/ban <utilisateur> <raison>` - Bannir (nécessite `ban_members`)
+- `/unban <user_id>` - Débannir (nécessite `ban_members`)
+- `/kick <utilisateur> <raison>` - Expulser (nécessite `kick_members`)
 
 ### 🎯 Général
 
@@ -122,9 +122,10 @@ python bot.py
 - Annotations de type complètes
 - Enums pour les types de classement
 
-### 🔧 Architecture Modulaire
+### 🔧 Architecture Cogs
 
-- Séparation des responsabilités
+- Séparation des responsabilités par Cog
+- Gestion du cycle de vie des Cogs
 - Injection de dépendances
 - Gestionnaires spécialisés (KillFeedManager)
 
@@ -133,6 +134,7 @@ python bot.py
 - Exceptions personnalisées (`APIError`)
 - Décorateurs pour la gestion d'erreurs
 - Logging centralisé
+- Gestionnaires d'erreurs par Cog
 
 ### ⚡ Performance
 
@@ -166,41 +168,45 @@ python bot.py
 
 ## 🔧 Intégration de Nouvelles Fonctionnalités
 
-### Ajouter une nouvelle API
+### Ajouter un nouveau Cog
 
 ```python
-# api/new_api_client.py
-class NewAPIClient:
-    async def get_data(self) -> List[DataModel]:
-        # Implémentation
-        pass
+# cogs/new_feature.py
+from discord.ext import commands
 
-# commands/new_commands.py
-class NewCommands:
-    def __init__(self, api_client: NewAPIClient):
-        self.api_client = api_client
+class NewFeatureCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.command()
+    async def new_command(self, ctx):
+        await ctx.send("Nouvelle fonctionnalité!")
+
+async def setup(bot):
+    await bot.add_cog(NewFeatureCog(bot))
 ```
 
-### Ajouter une nouvelle commande
+### Charger le nouveau Cog
 
 ```python
-@bot.tree.command(name="nouvellecommande", description="Description")
-async def nouvelle_commande(interaction: discord.Interaction):
-    await bot.new_commands.nouvelle_commande(interaction)
+# bot.py
+async def setup_hook(self):
+    await self.load_extension("cogs.new_feature")
 ```
 
 ## 🔄 Évolutivité
 
-L'architecture permet d'ajouter facilement :
+L'architecture Cogs permet d'ajouter facilement :
 
-- Nouvelles APIs externes
-- Nouvelles commandes
+- Nouveaux Cogs pour de nouvelles fonctionnalités
+- Nouvelles commandes dans les Cogs existants
 - Systèmes de base de données
 - Intégrations de jeux
 
 ## 🔗 Liens Utiles
 
 - [Documentation Discord.py](https://discordpy.readthedocs.io/)
+- [Guide des Cogs Discord.py](https://discordpy.readthedocs.io/en/stable/ext/commands/cogs.html)
 - [Plugin Plan](https://github.com/plan-player-analytics/Plan)
 - [API Discord](https://discord.com/developers/docs)
 
