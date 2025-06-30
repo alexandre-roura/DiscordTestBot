@@ -5,7 +5,7 @@ from typing import Optional, List
 from api.minecraft_client import MinecraftAPIClient
 from api.models import MinecraftPlayerStats
 from utils.helpers import handle_api_errors
-from utils.killfeed_manager import KillFeedManager
+from services.killfeed_service import KillFeedService
 from views.minecraft_views import MinecraftViews
 from enum import Enum
 
@@ -21,8 +21,7 @@ class MinecraftCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.api_client = MinecraftAPIClient()
-        self.killfeed_channel = None
-        self.killfeed_manager = None
+        self.killfeed = None
     
     async def cog_load(self):
         """Appelé quand le Cog est chargé."""
@@ -31,15 +30,13 @@ class MinecraftCog(commands.Cog):
     
     async def cog_unload(self):
         """Appelé quand le Cog est déchargé."""
-        if self.killfeed_manager and self.killfeed_manager.is_monitoring:
-            await self.killfeed_manager.stop_monitoring()
+        if self.killfeed:
+            await self.killfeed.stop_monitoring()
         await self.api_client.__aexit__(None, None, None)
     
     async def setup_killfeed(self, channel_id: int):
         """Configure le canal de killfeed."""
-        self.killfeed_channel = self.bot.get_channel(channel_id)
-        if self.killfeed_channel:
-            self.killfeed_manager = KillFeedManager(self.api_client, self.killfeed_channel)
+        self.killfeed = KillFeedService(self.api_client, self.bot.get_channel(channel_id))
     
     @app_commands.command(name="listminecraftplayers", description="Affiche la liste des joueurs Minecraft")
     @handle_api_errors
@@ -113,53 +110,29 @@ class MinecraftCog(commands.Cog):
         embed = MinecraftViews.create_ranking_embed(ranking_data, ranking_enum)
         await interaction.followup.send(embed=embed)
     
-    @app_commands.command(name="killfeedstart", description="Démarre le monitoring du killfeed dans le canal dédié")
-    @app_commands.checks.has_permissions(manage_channels=True)
-    async def killfeed_start(self, interaction: discord.Interaction):
-        if not self.killfeed_manager:
-            await interaction.response.send_message(
-                "❌ Le canal de killfeed n'est pas configuré.",
-                ephemeral=True
-            )
+    @commands.command(name="killfeed")
+    async def toggle_killfeed(self, ctx, action: str = None):
+        """Active/désactive le suivi des kills dans le canal."""
+        if not action:
+            await ctx.send("❌ Veuillez spécifier 'start' ou 'stop'.")
             return
+
+        if action.lower() == "start":
+            if not self.killfeed:
+                self.killfeed = KillFeedService(self.api_client, ctx.channel)
+            success, message = await self.killfeed.start_monitoring()
         
-        if self.killfeed_manager.is_monitoring:
-            await interaction.response.send_message(
-                "Le killfeed est déjà actif !",
-                ephemeral=True
-            )
+        elif action.lower() == "stop":
+            if not self.killfeed:
+                await ctx.send("❌ Le killfeed n'est pas initialisé.")
+                return
+            success, message = await self.killfeed.stop_monitoring()
+        
+        else:
+            await ctx.send("❌ Action invalide. Utilisez 'start' ou 'stop'.")
             return
-        
-        await self.killfeed_manager.start_monitoring()
-        await interaction.response.send_message("✅ Monitoring du killfeed démarré !")
-    
-    @app_commands.command(name="killfeedstop", description="Arrête le monitoring du killfeed")
-    @app_commands.checks.has_permissions(manage_channels=True)
-    async def killfeed_stop(self, interaction: discord.Interaction):
-        if not self.killfeed_manager:
-            await interaction.response.send_message(
-                "❌ Le canal de killfeed n'est pas configuré.",
-                ephemeral=True
-            )
-            return
-        
-        if not self.killfeed_manager.is_monitoring:
-            await interaction.response.send_message(
-                "Le killfeed est déjà arrêté !",
-                ephemeral=True
-            )
-            return
-        
-        await self.killfeed_manager.stop_monitoring()
-        await interaction.response.send_message("✅ Monitoring du killfeed arrêté !")
-    
-    @app_commands.command(name="killfeedstatus", description="Affiche le statut du killfeed")
-    async def killfeed_status(self, interaction: discord.Interaction):
-        is_configured = self.killfeed_manager is not None
-        is_active = is_configured and self.killfeed_manager.is_monitoring
-        
-        embed = MinecraftViews.create_killfeed_status_embed(is_active, is_configured)
-        await interaction.response.send_message(embed=embed)
+
+        await ctx.send("✅ " + message if success else "❌ " + message)
     
     # Méthodes utilitaires
     async def get_players_ranking(self, ranking_type: RankingType, limit: int = 10) -> List[tuple]:

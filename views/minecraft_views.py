@@ -126,36 +126,46 @@ class MinecraftViews:
         return embed
     
     @staticmethod
-    def create_killfeed_embed(kill_event: KillEvent) -> discord.Embed:
-        """Crée l'embed pour un événement de kill."""
-        weapon_emoji = EmbedTheme.get_weapon_emoji(kill_event.weapon)
+    def create_killfeed_embed(kill: KillEvent) -> discord.Embed:
+        """Crée un embed pour un événement de kill."""
+        # Déterminer l'emoji selon l'arme
+        weapon_emoji = MinecraftViews._get_weapon_emoji(kill.weapon)
+        
+        # Créer un message stylé
+        if kill.distance > 0:
+            message = f"{weapon_emoji} **{kill.killer}** a anéanti **{kill.victim}** avec un {kill.weapon} à {kill.distance:.0f} mètres !"
+        else:
+            message = f"{weapon_emoji} **{kill.killer}** a éliminé **{kill.victim}** avec un {kill.weapon} !"
         
         embed = discord.Embed(
-            title=f"{weapon_emoji} Nouveau Kill !",
-            color=EmbedTheme.KILLFEED_COLOR
+            title="💀 Kill Feed",
+            description=message,
+            color=EmbedTheme.ERROR_COLOR,
+            timestamp=datetime.fromtimestamp(kill.timestamp / 1000) if kill.timestamp > 0 else datetime.now()
         )
         
-        # Description du kill
-        embed.description = f"**{kill_event.killer}** a tué **{kill_event.victim}**"
-        
-        # Détails
-        embed.add_field(
-            name="Arme",
-            value=f"{weapon_emoji} {kill_event.weapon}",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="Distance",
-            value=f"📏 {kill_event.distance:.1f}m",
-            inline=True
-        )
-        
-        # Timestamp
-        kill_time = datetime.fromtimestamp(kill_event.timestamp)
-        embed.timestamp = kill_time
-        
+        embed.set_footer(text="Kill détecté automatiquement")
         return embed
+
+    @staticmethod
+    def _get_weapon_emoji(weapon: str) -> str:
+        """Retourne l'emoji approprié selon l'arme."""
+        weapon_lower = weapon.lower()
+        
+        if "sword" in weapon_lower or "épée" in weapon_lower:
+            return "⚔️"
+        elif "bow" in weapon_lower or "arc" in weapon_lower:
+            return "🏹"
+        elif "axe" in weapon_lower or "hache" in weapon_lower:
+            return "🪓"
+        elif "pickaxe" in weapon_lower or "pioche" in weapon_lower:
+            return "⛏️"
+        elif "trident" in weapon_lower:
+            return "🔱"
+        elif "crossbow" in weapon_lower or "arbalète" in weapon_lower:
+            return "🏹"
+        else:
+            return "🗡️"
     
     @staticmethod
     def create_killfeed_status_embed(is_active: bool, is_configured: bool) -> discord.Embed:

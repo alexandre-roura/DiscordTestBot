@@ -2,9 +2,10 @@ import asyncio
 import discord
 from datetime import datetime
 from api.minecraft_client import MinecraftAPIClient, KillEvent
+from views.minecraft_views import MinecraftViews
 
-class KillFeedManager:
-    """Gestionnaire du killfeed avec monitoring automatique."""
+class KillFeedService:
+    """Service de monitoring du killfeed."""
     
     def __init__(self, api_client: MinecraftAPIClient, channel: discord.TextChannel = None):
         self.api_client = api_client
@@ -58,51 +59,11 @@ class KillFeedManager:
                 # Afficher les nouveaux kills
                 if self.is_monitoring:
                     for kill in new_kills:
-                        embed = self._create_kill_embed(kill)
+                        embed = MinecraftViews.create_killfeed_embed(kill)
                         await self.channel.send(embed=embed)
                 
             except Exception as e:
                 print(f"Erreur lors du monitoring des kills: {e}")
             
             # Attendre avant la prochaine vérification
-            await asyncio.sleep(self.check_interval)
-    
-    def _create_kill_embed(self, kill: KillEvent) -> discord.Embed:
-        """Crée un embed pour un événement de kill."""
-        # Déterminer l'emoji selon l'arme
-        weapon_emoji = self._get_weapon_emoji(kill.weapon)
-        
-        # Créer un message stylé
-        if kill.distance > 0:
-            message = f"{weapon_emoji} **{kill.killer}** a anéanti **{kill.victim}** avec un {kill.weapon} à {kill.distance:.0f} mètres !"
-        else:
-            message = f"{weapon_emoji} **{kill.killer}** a éliminé **{kill.victim}** avec un {kill.weapon} !"
-        
-        embed = discord.Embed(
-            title="💀 Kill Feed",
-            description=message,
-            color=discord.Color.red(),
-            timestamp=datetime.fromtimestamp(kill.timestamp / 1000) if kill.timestamp > 0 else datetime.now()
-        )
-        
-        embed.set_footer(text="Kill détecté automatiquement")
-        return embed
-    
-    def _get_weapon_emoji(self, weapon: str) -> str:
-        """Retourne l'emoji approprié selon l'arme."""
-        weapon_lower = weapon.lower()
-        
-        if "sword" in weapon_lower or "épée" in weapon_lower:
-            return "⚔️"
-        elif "bow" in weapon_lower or "arc" in weapon_lower:
-            return "🏹"
-        elif "axe" in weapon_lower or "hache" in weapon_lower:
-            return "🪓"
-        elif "pickaxe" in weapon_lower or "pioche" in weapon_lower:
-            return "⛏️"
-        elif "trident" in weapon_lower:
-            return "🔱"
-        elif "crossbow" in weapon_lower or "arbalète" in weapon_lower:
-            return "🏹"
-        else:
-            return "🗡️" 
+            await asyncio.sleep(self.check_interval) 
