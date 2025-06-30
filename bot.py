@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 # Import des modules refactorisés
 from api.minecraft_client import MinecraftAPIClient
-from commands.minecraft_commands import MinecraftCommands
+from commands.minecraft_commands import MinecraftCommands, RankingType
 from commands.moderation_commands import ModerationCommands
 from config.settings import bot_config
 from utils.helpers import setup_logging
@@ -26,7 +26,12 @@ class DiscordBot(commands.Bot):
         
         # Initialisation des clients
         self.minecraft_client = MinecraftAPIClient()
-        self.minecraft_commands = MinecraftCommands(self.minecraft_client)
+        
+        # Récupération du canal de killfeed
+        self.killfeed_channel = None  # Sera défini après la connexion
+        
+        # Initialisation temporaire sans canal
+        self.minecraft_commands = None
         self.moderation_commands = ModerationCommands()
     
     async def setup_hook(self):
@@ -48,6 +53,16 @@ bot = DiscordBot()
 async def on_ready():
     """Événement déclenché quand le bot est prêt."""
     print(f'Bot connecté en tant que {bot.user}')
+    
+    # Récupération du canal de killfeed
+    bot.killfeed_channel = bot.get_channel(bot_config.minecraft_killfeed_channel_id)
+    if not bot.killfeed_channel:
+        print(f"⚠️ Canal de killfeed (ID: {bot_config.minecraft_killfeed_channel_id}) introuvable.")
+        # Créer une instance sans canal (les commandes killfeed ne fonctionneront pas)
+        bot.minecraft_commands = MinecraftCommands(bot.minecraft_client, None)
+    else:
+        # Initialisation de MinecraftCommands avec le canal
+        bot.minecraft_commands = MinecraftCommands(bot.minecraft_client, bot.killfeed_channel)
     
     # Synchronisation des commandes
     try:
@@ -130,7 +145,7 @@ async def list_minecraft_players(interaction: discord.Interaction):
     await interaction.response.defer()  # Réponse différée pour les requêtes longues
     
     try:
-        players = await bot.minecraft_commands.api_client.get_players()
+        players = await bot.minecraft_commands.get_players()
         
         if not players:
             await interaction.followup.send(
@@ -182,6 +197,167 @@ async def stats_minecraft_for_player(interaction: discord.Interaction, player_na
             f"Une erreur est survenue: {str(e)}",
             ephemeral=True
         )
+
+@bot.tree.command(name="minecraftranking", description="Affiche le classement des joueurs Minecraft")
+@app_commands.describe(
+    ranking_type="Type de classement (kda/kills)",
+    limit="Nombre de joueurs à afficher (défaut: 10, max: 25)"
+)
+@app_commands.choices(ranking_type=[
+    app_commands.Choice(name="Ratio K/D", value="kda"),
+    app_commands.Choice(name="Nombre de Kills", value="kills"),
+    app_commands.Choice(name="Nombre de Morts", value="deaths")
+])
+async def minecraft_ranking(interaction: discord.Interaction, ranking_type: str, limit: int = 10):
+    """Commande pour afficher le classement des joueurs Minecraft."""
+    await interaction.response.defer()  # Réponse différée pour les requêtes longues
+    
+    # Validation du paramètre limit
+    if limit < 1 or limit > 25:
+        await interaction.followup.send(
+            "Le nombre de joueurs doit être entre 1 et 25.",
+            ephemeral=True
+        )
+        return
+    
+    # Conversion du type de classement
+    try:
+        ranking_enum = RankingType(ranking_type)
+    except ValueError:
+        await interaction.followup.send(
+            "Type de classement invalide. Utilisez 'kda', 'kills' ou 'deaths'.",
+            ephemeral=True
+        )
+        return
+    
+    try:
+        ranking_data = await bot.minecraft_commands.get_players_ranking(ranking_enum, limit)
+        
+        if not ranking_data:
+            await interaction.followup.send(
+                "Aucun joueur trouvé avec des statistiques de combat.",
+                ephemeral=True
+            )
+            return
+        
+        embed = bot.minecraft_commands.create_ranking_embed(ranking_data, ranking_enum)
+        await interaction.followup.send(embed=embed)
+        
+    except Exception as e:
+        await interaction.followup.send(
+            f"Une erreur est survenue lors de la récupération du classement: {str(e)}",
+            ephemeral=True
+        )
+
+@bot.tree.command(name="killfeedstart", description="Démarre le monitoring du killfeed dans le canal dédié")
+@app_commands.checks.has_permissions(manage_channels=True)
+async def killfeed_start(interaction: discord.Interaction):
+    """Commande pour démarrer le monitoring du killfeed."""
+    await interaction.response.defer()
+    
+    try:
+        success, message = await bot.minecraft_commands.start_killfeed()
+        
+        if success:
+            embed = discord.Embed(
+                title="✅ Killfeed Démarré",
+                description=message,
+                color=discord.Color.green()
+            )
+        else:
+            embed = discord.Embed(
+                title="⚠️ Killfeed Déjà Actif",
+                description=message,
+                color=discord.Color.orange()
+            )
+        
+        await interaction.followup.send(embed=embed)
+        
+    except Exception as e:
+        await interaction.followup.send(
+            f"Une erreur est survenue lors du démarrage du killfeed: {str(e)}",
+            ephemeral=True
+        )
+
+@killfeed_start.error
+async def on_killfeed_start_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    """Gestion d'erreur pour la commande killfeedstart."""
+    if isinstance(error, app_commands.errors.MissingPermissions):
+        await interaction.response.send_message(
+            "Vous n'avez pas la permission de gérer les canaux pour utiliser cette commande.",
+            ephemeral=True
+        )
+    else:
+        await interaction.response.send_message(
+            "Une erreur inconnue est survenue.",
+            ephemeral=True
+        )
+        raise error
+
+@bot.tree.command(name="killfeedstop", description="Arrête le monitoring du killfeed")
+@app_commands.checks.has_permissions(manage_channels=True)
+async def killfeed_stop(interaction: discord.Interaction):
+    """Commande pour arrêter le monitoring du killfeed."""
+    await interaction.response.defer()
+    
+    try:
+        success, message = await bot.minecraft_commands.stop_killfeed()
+        
+        if success:
+            embed = discord.Embed(
+                title="🛑 Killfeed Arrêté",
+                description=message,
+                color=discord.Color.red()
+            )
+        else:
+            embed = discord.Embed(
+                title="⚠️ Killfeed Non Actif",
+                description=message,
+                color=discord.Color.orange()
+            )
+        
+        await interaction.followup.send(embed=embed)
+        
+    except Exception as e:
+        await interaction.followup.send(
+            f"Une erreur est survenue lors de l'arrêt du killfeed: {str(e)}",
+            ephemeral=True
+        )
+
+@killfeed_stop.error
+async def on_killfeed_stop_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    """Gestion d'erreur pour la commande killfeedstop."""
+    if isinstance(error, app_commands.errors.MissingPermissions):
+        await interaction.response.send_message(
+            "Vous n'avez pas la permission de gérer les canaux pour utiliser cette commande.",
+            ephemeral=True
+        )
+    else:
+        await interaction.response.send_message(
+            "Une erreur inconnue est survenue.",
+            ephemeral=True
+        )
+        raise error
+
+@bot.tree.command(name="killfeedstatus", description="Affiche le statut du killfeed")
+async def killfeed_status(interaction: discord.Interaction):
+    """Commande pour afficher le statut du killfeed."""
+    is_active = bot.minecraft_commands.is_killfeed_active()
+    
+    if is_active:
+        embed = discord.Embed(
+            title="🟢 Killfeed Actif",
+            description=f"Le monitoring du killfeed est en cours dans {bot.killfeed_channel.mention}",
+            color=discord.Color.green()
+        )
+    else:
+        embed = discord.Embed(
+            title="🔴 Killfeed Inactif",
+            description=f"Le monitoring du killfeed n'est pas actif.",
+            color=discord.Color.red()
+        )
+    
+    await interaction.response.send_message(embed=embed)
 
 # Point d'entrée principal
 if __name__ == "__main__":

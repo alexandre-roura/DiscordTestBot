@@ -14,13 +14,15 @@ class BotConfig:
     command_prefix: str = "!"
     welcome_channel_id: Optional[int] = None
     ban_channel_id: Optional[int] = None
+    minecraft_killfeed_channel_id: int = 1389082181309300796
     
     @classmethod
     def from_env(cls) -> 'BotConfig':
         """Crée une configuration à partir des variables d'environnement."""
         return cls(
             welcome_channel_id=int(os.getenv('WELCOME_CHANNEL', 0)) if os.getenv('WELCOME_CHANNEL') else None,
-            ban_channel_id=int(os.getenv('BAN_CHANNEL', 0)) if os.getenv('BAN_CHANNEL') else None
+            ban_channel_id=int(os.getenv('BAN_CHANNEL', 0)) if os.getenv('BAN_CHANNEL') else None,
+            minecraft_killfeed_channel_id=int(os.getenv('MINECRAFT_KILLFEED_CHANNEL', 1389082181309300796))
         )
 
 # Configuration globale

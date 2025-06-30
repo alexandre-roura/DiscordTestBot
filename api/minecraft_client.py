@@ -1,6 +1,15 @@
 import aiohttp
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from .models import MinecraftPlayer, MinecraftPlayerStats, KillData
+
+class KillEvent:
+    """Modèle pour un événement de kill."""
+    def __init__(self, killer: str, victim: str, weapon: str, distance: float, timestamp: int):
+        self.killer = killer
+        self.victim = victim
+        self.weapon = weapon
+        self.distance = distance
+        self.timestamp = timestamp
 
 class APIError(Exception):
     """Exception personnalisée pour les erreurs API."""
@@ -75,4 +84,30 @@ class MinecraftAPIClient:
                 sessions=data.get("sessions", []),
                 info=data.get("info", {}),
                 timestamp=data.get("timestamp", 0)
-            ) 
+            )
+    
+    async def get_kills(self, server: str = "Server 1") -> List[KillEvent]:
+        """Récupère les événements de kill récents."""
+        if not self._session:
+            raise APIError("Session non initialisée. Utilisez 'async with' ou appelez __aenter__")
+        
+        import urllib.parse
+        encoded_server = urllib.parse.quote(server)
+        
+        async with self._session.get(f"{self.base_url}/v1/kills?server={encoded_server}") as response:
+            if response.status != 200:
+                raise APIError(f"Erreur {response.status}: Impossible de récupérer les kills")
+            
+            data = await response.json()
+            kills_data = data.get("kills", [])
+            
+            return [
+                KillEvent(
+                    killer=kill.get("killer", "Unknown"),
+                    victim=kill.get("victim", "Unknown"),
+                    weapon=kill.get("weapon", "Unknown"),
+                    distance=kill.get("distance", 0.0),
+                    timestamp=kill.get("timestamp", 0)
+                )
+                for kill in kills_data
+            ] 
