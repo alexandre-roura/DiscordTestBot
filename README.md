@@ -1,6 +1,6 @@
-# Discord Bot - Architecture Modulaire
+# 🤖 Bot Discord - Architecture Modulaire
 
-Bot Discord moderne avec architecture modulaire, typage fort et bonnes pratiques Python.
+Bot Discord moderne avec architecture modulaire et typage fort. Intégration avec l'API du plugin **Plan** pour Minecraft et système de killfeed en temps réel.
 
 ## 🏗️ Architecture
 
@@ -8,18 +8,15 @@ Bot Discord moderne avec architecture modulaire, typage fort et bonnes pratiques
 DiscordTestBot/
 ├── bot.py                     # Point d'entrée principal
 ├── api/                       # Clients API externes
-│   ├── __init__.py
-│   ├── minecraft_client.py    # Client API Minecraft
+│   ├── minecraft_client.py    # Client API Plan
 │   └── models.py              # Modèles de données typés
 ├── commands/                  # Gestionnaires de commandes
-│   ├── __init__.py
 │   ├── minecraft_commands.py  # Commandes Minecraft
 │   └── moderation_commands.py # Commandes de modération
 ├── utils/                     # Utilitaires
-│   ├── __init__.py
-│   └── helpers.py             # Fonctions utilitaires
+│   ├── helpers.py             # Fonctions utilitaires
+│   └── killfeed_manager.py    # Gestionnaire de killfeed
 ├── config/                    # Configuration
-│   ├── __init__.py
 │   └── settings.py            # Configuration centralisée
 └── requirements.txt           # Dépendances
 ```
@@ -28,111 +25,146 @@ DiscordTestBot/
 
 ### 🎮 Commandes Minecraft
 
-- `/statsminecraftforplayer` - Affiche les statistiques de combat d'un joueur
-  - Kills sur d'autres joueurs
-  - Nombre de morts
-  - Ratio K/D calculé automatiquement
+#### 📊 Statistiques et Classements
 
-### 🛡️ Commandes de Modération
+- `/statsminecraftforplayer <nom>` - Statistiques détaillées d'un joueur
 
-- `/warn` - Avertir un utilisateur
-- `/ban` - Bannir un utilisateur (avec permissions)
-- `/unban` - Débannir un utilisateur (avec permissions)
-- `/kick` - Expulser un utilisateur
+  - Kills, morts et ratio K/D
+  - Informations de performance
 
-### 🎯 Commandes Générales
+- `/listminecraftplayers` - Liste des joueurs connectés
+
+  - Formatage avec embeds Discord
+
+- `/minecraftranking <type> [limite]` - Classements des joueurs
+  - **Types** : `kda` (ratio), `kills`, `deaths`
+  - Limite configurable (défaut: 10, max: 25)
+  - Emojis pour les 3 premiers (🥇🥈🥉)
+
+#### 🔥 Killfeed en Temps Réel
+
+- `/killfeedstart` - Démarre le monitoring automatique
+
+  - Surveillance via l'API Plan
+  - Vérification toutes les 30 secondes
+
+- `/killfeedstop` - Arrête le monitoring
+- `/killfeedstatus` - Statut du killfeed
+
+**Fonctionnalités :**
+
+- 🎯 Détection automatique des kills
+- 🗡️ Emojis selon l'arme utilisée
+- 📏 Affichage de la distance de tir
+- ⏰ Horodatage des événements
+
+### 🛡️ Modération
+
+- `/warn <utilisateur>` - Avertir
+- `/ban <utilisateur> <raison>` - Bannir (avec permissions)
+- `/unban <user_id>` - Débannir (avec permissions)
+- `/kick <utilisateur> <raison>` - Expulser
+
+### 🎯 Général
 
 - `/hello` - Salutation
-- `/embed` - Envoie un embed de test
+- Messages de bienvenue automatiques
+- Commandes préfixées (`!hello`, `!welcome`)
 
 ## 🚀 Installation
 
-1. **Cloner le projet**
+### Prérequis
 
-```bash
-git clone <repository-url>
-cd DiscordTestBot
-```
+- Python 3.8+
+- Serveur Discord avec bot configuré
+- Serveur Minecraft avec le plugin **Plan**
 
-2. **Installer les dépendances**
+### Configuration
 
-```bash
-pip install -r requirements.txt
-```
-
-3. **Configuration**
-   Créer un fichier `.env` :
+Créer un fichier `.env` :
 
 ```env
 DISCORD_TOKEN=votre_token_discord
 WELCOME_CHANNEL=id_du_channel_bienvenue
 BAN_CHANNEL=id_du_channel_bans
+MINECRAFT_KILLFEED_CHANNEL=id_du_channel_killfeed
+MINECRAFT_API_URL=http://localhost:8804
 ```
 
-4. **Lancer le bot**
+### Lancement
 
 ```bash
+git clone <repository-url>
+cd DiscordTestBot
+pip install -r requirements.txt
 python bot.py
 ```
 
-## 🏛️ Bonnes Pratiques Implémentées
+## ⚙️ Configuration
+
+### API Plan
+
+- **URL** : `http://localhost:8804` (défaut)
+- **Timeout** : 30 secondes
+- **Plugin requis** : Plan installé sur le serveur Minecraft
+
+### Permissions Discord
+
+- **Modération** : `ban_members`, `kick_members`
+- **Killfeed** : `manage_channels`
+- **Général** : `send_messages`, `embed_links`
+
+## 🏛️ Bonnes Pratiques
 
 ### 📝 Typage Fort
 
-- Utilisation de `dataclasses` pour les modèles de données
+- Utilisation de `dataclasses` pour les modèles
 - Annotations de type complètes
-- Validation des types à la compilation
+- Enums pour les types de classement
 
 ### 🔧 Architecture Modulaire
 
-- **Séparation des responsabilités** : API, commandes, configuration séparées
-- **Injection de dépendances** : Clients injectés dans les commandes
-- **Classes spécialisées** : Chaque module a sa responsabilité
+- Séparation des responsabilités
+- Injection de dépendances
+- Gestionnaires spécialisés (KillFeedManager)
 
 ### 🛡️ Gestion d'Erreurs
 
 - Exceptions personnalisées (`APIError`)
-- Décorateurs pour la gestion d'erreurs (`@handle_api_errors`)
-- Logging centralisé avec rotation de fichiers
+- Décorateurs pour la gestion d'erreurs
+- Logging centralisé
 
 ### ⚡ Performance
 
-- Sessions HTTP réutilisées avec contexte managers
-- Réponses différées pour les requêtes longues
-- Gestion asynchrone optimisée
-
-### 🔒 Sécurité
-
-- Configuration via variables d'environnement
-- Validation des permissions Discord
-- Gestion sécurisée des IDs utilisateur
-
-## 🧪 Tests
-
-Le code est structuré pour faciliter les tests unitaires :
-
-- Classes avec injection de dépendances
-- Méthodes statiques pour les commandes
-- Séparation claire entre logique métier et interface
-
-## 📊 Logging
-
-Le système de logging est configuré pour :
-
-- Afficher les logs dans la console
-- Sauvegarder dans `bot.log`
-- Différents niveaux de log (INFO, ERROR, DEBUG)
-
-## 🔄 Évolutivité
-
-L'architecture permet d'ajouter facilement :
-
-- Nouvelles APIs externes
-- Nouvelles commandes
-- Nouvelles fonctionnalités de modération
-- Systèmes de base de données
+- Sessions HTTP réutilisées
+- Réponses différées pour requêtes longues
+- Monitoring asynchrone du killfeed
 
 ## 📝 Exemples d'Usage
+
+### Classements
+
+```bash
+/minecraftranking kda 15    # Top 15 par ratio K/D
+/minecraftranking kills 10  # Top 10 par kills
+/minecraftranking deaths 5  # Top 5 par morts
+```
+
+### Killfeed
+
+```bash
+/killfeedstart   # Démarre le monitoring
+/killfeedstop    # Arrête le monitoring
+/killfeedstatus  # Vérifie le statut
+```
+
+### Statistiques
+
+```bash
+/statsminecraftforplayer NomDuJoueur
+```
+
+## 🔧 Intégration de Nouvelles Fonctionnalités
 
 ### Ajouter une nouvelle API
 
@@ -157,12 +189,20 @@ async def nouvelle_commande(interaction: discord.Interaction):
     await bot.new_commands.nouvelle_commande(interaction)
 ```
 
-## 🤝 Contribution
+## 🔄 Évolutivité
 
-1. Respecter l'architecture modulaire
-2. Ajouter le typage pour toutes les fonctions
-3. Documenter les nouvelles fonctionnalités
-4. Tester les modifications
+L'architecture permet d'ajouter facilement :
+
+- Nouvelles APIs externes
+- Nouvelles commandes
+- Systèmes de base de données
+- Intégrations de jeux
+
+## 🔗 Liens Utiles
+
+- [Documentation Discord.py](https://discordpy.readthedocs.io/)
+- [Plugin Plan](https://github.com/plan-player-analytics/Plan)
+- [API Discord](https://discord.com/developers/docs)
 
 ## 📄 Licence
 
