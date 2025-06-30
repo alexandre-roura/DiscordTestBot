@@ -6,6 +6,7 @@ from api.minecraft_client import MinecraftAPIClient
 from api.models import MinecraftPlayerStats
 from utils.helpers import handle_api_errors
 from utils.killfeed_manager import KillFeedManager
+from views.minecraft_views import MinecraftViews
 from enum import Enum
 
 class RankingType(Enum):
@@ -46,19 +47,7 @@ class MinecraftCog(commands.Cog):
         await interaction.response.defer()
         
         players = await self.api_client.get_players()
-        
-        if not players:
-            await interaction.followup.send("Aucun joueur trouvé.", ephemeral=True)
-            return
-        
-        embed = discord.Embed(
-            title="Liste des joueurs Minecraft",
-            color=discord.Color.blue()
-        )
-        
-        player_list = "\n".join([f"• {player.player_name}" for player in players])
-        embed.add_field(name="Joueurs", value=player_list)
-        
+        embed = MinecraftViews.create_player_list_embed(players)
         await interaction.followup.send(embed=embed)
     
     @app_commands.command(name="statsminecraftforplayer", description="Affiche les stats minecraft d'un joueur")
@@ -87,7 +76,7 @@ class MinecraftCog(commands.Cog):
             )
             return
         
-        embed = self.create_stats_embed(player_name, stats)
+        embed = MinecraftViews.create_stats_embed(player_name, stats)
         await interaction.followup.send(embed=embed)
     
     @app_commands.command(name="minecraftranking", description="Affiche le classement des joueurs Minecraft")
@@ -121,15 +110,7 @@ class MinecraftCog(commands.Cog):
             return
         
         ranking_data = await self.get_players_ranking(ranking_enum, limit)
-        
-        if not ranking_data:
-            await interaction.followup.send(
-                "Aucun joueur trouvé avec des statistiques de combat.",
-                ephemeral=True
-            )
-            return
-        
-        embed = self.create_ranking_embed(ranking_data, ranking_enum)
+        embed = MinecraftViews.create_ranking_embed(ranking_data, ranking_enum)
         await interaction.followup.send(embed=embed)
     
     @app_commands.command(name="killfeedstart", description="Démarre le monitoring du killfeed dans le canal dédié")
@@ -174,46 +155,13 @@ class MinecraftCog(commands.Cog):
     
     @app_commands.command(name="killfeedstatus", description="Affiche le statut du killfeed")
     async def killfeed_status(self, interaction: discord.Interaction):
-        if not self.killfeed_manager:
-            status = "❌ Non configuré"
-        else:
-            status = "✅ Actif" if self.killfeed_manager.is_monitoring else "⏸️ Inactif"
+        is_configured = self.killfeed_manager is not None
+        is_active = is_configured and self.killfeed_manager.is_monitoring
         
-        await interaction.response.send_message(f"Statut du killfeed : {status}")
+        embed = MinecraftViews.create_killfeed_status_embed(is_active, is_configured)
+        await interaction.response.send_message(embed=embed)
     
     # Méthodes utilitaires
-    def create_stats_embed(self, player_name: str, stats: MinecraftPlayerStats) -> discord.Embed:
-        """Crée un embed Discord avec les statistiques."""
-        embed = discord.Embed(
-            title=f"Stats de {player_name}",
-            description=f"Stats de combat de {player_name}",
-            color=discord.Color.blue()
-        )
-        
-        kill_data = stats.kill_data
-        
-        embed.add_field(
-            name="Kills (Joueurs)",
-            value=kill_data.player_kills_total,
-            inline=True
-        )
-        embed.add_field(
-            name="Morts",
-            value=kill_data.deaths_total,
-            inline=True
-        )
-        
-        if kill_data.deaths_total > 0:
-            kdr = kill_data.player_kills_total / kill_data.deaths_total
-            kdr_text = f"{kdr:.2f}"
-        elif kill_data.player_kills_total > 0:
-            kdr_text = "∞ (Aucune mort)"
-        else:
-            kdr_text = "0.00"
-        
-        embed.add_field(name="K/D Ratio", value=kdr_text, inline=True)
-        return embed
-    
     async def get_players_ranking(self, ranking_type: RankingType, limit: int = 10) -> List[tuple]:
         """Récupère le classement des joueurs selon le type spécifié."""
         players = await self.api_client.get_players()
@@ -261,54 +209,6 @@ class MinecraftCog(commands.Cog):
         if ranking_type == RankingType.KDA:
             return score if score != float('inf') else 999999
         return score
-    
-    def create_ranking_embed(self, ranking_data: List[tuple], ranking_type: RankingType) -> discord.Embed:
-        """Crée un embed Discord avec le classement des joueurs."""
-        titles = {
-            RankingType.KDA: ("Ratio K/D", "Classement basé sur le ratio Kill/Death"),
-            RankingType.KILLS: ("Nombre de Kills", "Classement basé sur le nombre total de kills"),
-            RankingType.DEATHS: ("Nombre de Morts", "Classement basé sur le nombre total de morts")
-        }
-        
-        title, description = titles[ranking_type]
-        
-        embed = discord.Embed(
-            title=f"🏆 Classement des Joueurs Minecraft - {title}",
-            description=description,
-            color=discord.Color.gold()
-        )
-        
-        if not ranking_data:
-            embed.add_field(
-                name="Aucune donnée",
-                value="Aucun joueur trouvé avec des statistiques de combat.",
-                inline=False
-            )
-            return embed
-        
-        ranking_text = ""
-        for i, (player_name, kills, deaths, score) in enumerate(ranking_data, 1):
-            prefix = ["🥇", "🥈", "🥉"][i-1] if i <= 3 else f"**{i}.**"
-            
-            if ranking_type == RankingType.KDA:
-                score_text = "∞" if score == float('inf') else f"{score:.2f}"
-                ranking_text += f"{prefix} **{player_name}**\n"
-                ranking_text += f"   Kills: {kills} | Morts: {deaths} | K/D: {score_text}\n\n"
-            elif ranking_type == RankingType.DEATHS:
-                ranking_text += f"{prefix} **{player_name}** - {deaths} Morts\n\n"
-            else:  # KILLS
-                ranking_text += f"{prefix} **{player_name}** - {kills} Kills\n\n"
-        
-        embed.add_field(
-            name="Classement",
-            value=ranking_text,
-            inline=False
-        )
-        
-        embed.set_footer(text="Mis à jour automatiquement")
-        embed.timestamp = discord.utils.utcnow()
-        
-        return embed
 
 async def setup(bot: commands.Bot):
     """Fonction de configuration du Cog."""
