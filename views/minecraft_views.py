@@ -1,8 +1,7 @@
 import discord
 from typing import List, Dict, Tuple, Optional
 from datetime import datetime
-from api.models import MinecraftPlayer, MinecraftPlayerStats, KillEvent
-from cogs.minecraft import RankingType
+from api.models import MinecraftPlayer, MinecraftPlayerStats, KillEvent, RankingType
 from .embed_theme import EmbedTheme
 
 class MinecraftViews:
@@ -80,7 +79,7 @@ class MinecraftViews:
     ) -> discord.Embed:
         """Crée l'embed pour le classement."""
         titles = {
-            RankingType.KDA: ("Ratio K/D", "Classement basé sur le ratio Kill/Death"),
+            RankingType.KD_RATIO: ("Ratio K/D", "Classement basé sur le ratio Kill/Death"),
             RankingType.KILLS: ("Nombre de Kills", "Classement basé sur le nombre total de kills"),
             RankingType.DEATHS: ("Nombre de Morts", "Classement basé sur le nombre total de morts")
         }
@@ -105,7 +104,7 @@ class MinecraftViews:
         for i, (player_name, kills, deaths, score) in enumerate(ranking_data, 1):
             prefix = EmbedTheme.get_ranking_prefix(i)
             
-            if ranking_type == RankingType.KDA:
+            if ranking_type == RankingType.KD_RATIO:
                 score_text = "∞" if score == float('inf') else f"{score:.2f}"
                 ranking_text += f"{prefix} **{player_name}**\n"
                 ranking_text += f"   Kills: {kills} | Morts: {deaths} | K/D: {score_text}\n\n"

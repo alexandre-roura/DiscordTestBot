@@ -3,17 +3,12 @@ from discord import app_commands
 from discord.ext import commands
 from typing import Optional, List
 from api.minecraft_client import MinecraftAPIClient
-from api.models import MinecraftPlayerStats
+from api.models import MinecraftPlayerStats, RankingType
 from utils.helpers import handle_api_errors
 from services.killfeed_service import KillFeedService
 from views.minecraft_views import MinecraftViews
 from enum import Enum
-
-class RankingType(Enum):
-    """Types de classements disponibles."""
-    KDA = "kda"
-    KILLS = "kills"
-    DEATHS = "deaths"
+from config.settings import bot_config
 
 class MinecraftCog(commands.Cog):
     """Cog pour les commandes Minecraft."""
@@ -26,17 +21,17 @@ class MinecraftCog(commands.Cog):
     async def cog_load(self):
         """Appelé quand le Cog est chargé."""
         await self.api_client.__aenter__()
-        # Le canal sera configuré dans setup_killfeed
+        # Configuration du killfeed avec le canal configuré
+        if bot_config.minecraft_killfeed_channel_id:
+            channel = self.bot.get_channel(bot_config.minecraft_killfeed_channel_id)
+            if channel:
+                self.killfeed = KillFeedService(self.api_client, channel)
     
     async def cog_unload(self):
         """Appelé quand le Cog est déchargé."""
         if self.killfeed:
             await self.killfeed.stop_monitoring()
         await self.api_client.__aexit__(None, None, None)
-    
-    async def setup_killfeed(self, channel_id: int):
-        """Configure le canal de killfeed."""
-        self.killfeed = KillFeedService(self.api_client, self.bot.get_channel(channel_id))
     
     @app_commands.command(name="listminecraftplayers", description="Affiche la liste des joueurs Minecraft")
     @handle_api_errors
@@ -78,11 +73,11 @@ class MinecraftCog(commands.Cog):
     
     @app_commands.command(name="minecraftranking", description="Affiche le classement des joueurs Minecraft")
     @app_commands.describe(
-        ranking_type="Type de classement (kda/kills/deaths)",
+        ranking_type="Type de classement (kd_ratio/kills/deaths)",
         limit="Nombre de joueurs à afficher (défaut: 10, max: 25)"
     )
     @app_commands.choices(ranking_type=[
-        app_commands.Choice(name="Ratio K/D", value="kda"),
+        app_commands.Choice(name="Ratio K/D", value="kd_ratio"),
         app_commands.Choice(name="Nombre de Kills", value="kills"),
         app_commands.Choice(name="Nombre de Morts", value="deaths")
     ])
@@ -101,7 +96,7 @@ class MinecraftCog(commands.Cog):
             ranking_enum = RankingType(ranking_type)
         except ValueError:
             await interaction.followup.send(
-                "Type de classement invalide. Utilisez 'kda', 'kills' ou 'deaths'.",
+                "Type de classement invalide. Utilisez 'kd_ratio', 'kills' ou 'deaths'.",
                 ephemeral=True
             )
             return
@@ -110,29 +105,47 @@ class MinecraftCog(commands.Cog):
         embed = MinecraftViews.create_ranking_embed(ranking_data, ranking_enum)
         await interaction.followup.send(embed=embed)
     
-    @commands.command(name="killfeed")
-    async def toggle_killfeed(self, ctx, action: str = None):
-        """Active/désactive le suivi des kills dans le canal."""
-        if not action:
-            await ctx.send("❌ Veuillez spécifier 'start' ou 'stop'.")
+    @app_commands.command(name="killfeed", description="Active/désactive le suivi des kills dans le canal configuré")
+    @app_commands.describe(action="Action à effectuer (start/stop)")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="Démarrer", value="start"),
+        app_commands.Choice(name="Arrêter", value="stop")
+    ])
+    @handle_api_errors
+    async def toggle_killfeed(self, interaction: discord.Interaction, action: str):
+        """Active/désactive le suivi des kills dans le canal configuré."""
+        await interaction.response.defer()
+
+        # Vérifier si le canal est configuré
+        if not bot_config.minecraft_killfeed_channel_id:
+            await interaction.followup.send("❌ Le canal de killfeed n'est pas configuré dans les paramètres.", ephemeral=True)
+            return
+
+        # Vérifier si l'utilisateur est dans le bon canal
+        if interaction.channel_id != bot_config.minecraft_killfeed_channel_id:
+            channel = self.bot.get_channel(bot_config.minecraft_killfeed_channel_id)
+            if channel:
+                await interaction.followup.send(f"❌ Cette commande doit être utilisée dans le canal {channel.mention}.", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ Le canal configuré n'est pas accessible.", ephemeral=True)
             return
 
         if action.lower() == "start":
             if not self.killfeed:
-                self.killfeed = KillFeedService(self.api_client, ctx.channel)
+                self.killfeed = KillFeedService(self.api_client, interaction.channel)
             success, message = await self.killfeed.start_monitoring()
         
         elif action.lower() == "stop":
             if not self.killfeed:
-                await ctx.send("❌ Le killfeed n'est pas initialisé.")
+                await interaction.followup.send("❌ Le killfeed n'est pas initialisé.", ephemeral=True)
                 return
             success, message = await self.killfeed.stop_monitoring()
         
         else:
-            await ctx.send("❌ Action invalide. Utilisez 'start' ou 'stop'.")
+            await interaction.followup.send("❌ Action invalide. Utilisez 'start' ou 'stop'.", ephemeral=True)
             return
 
-        await ctx.send("✅ " + message if success else "❌ " + message)
+        await interaction.followup.send("✅ " + message if success else "❌ " + message)
     
     # Méthodes utilitaires
     async def get_players_ranking(self, ranking_type: RankingType, limit: int = 10) -> List[tuple]:
@@ -166,7 +179,7 @@ class MinecraftCog(commands.Cog):
     
     def calculate_score(self, kills: int, deaths: int, ranking_type: RankingType) -> float:
         """Calcule le score selon le type de classement."""
-        if ranking_type == RankingType.KDA:
+        if ranking_type == RankingType.KD_RATIO:
             if deaths > 0:
                 return kills / deaths
             elif kills > 0:
@@ -179,15 +192,11 @@ class MinecraftCog(commands.Cog):
     
     def get_sort_key(self, score: float, ranking_type: RankingType) -> float:
         """Retourne la clé de tri selon le type de classement."""
-        if ranking_type == RankingType.KDA:
+        if ranking_type == RankingType.KD_RATIO:
             return score if score != float('inf') else 999999
         return score
 
 async def setup(bot: commands.Bot):
     """Fonction de configuration du Cog."""
     minecraft_cog = MinecraftCog(bot)
-    await bot.add_cog(minecraft_cog)
-    # Configuration du killfeed si l'ID du canal est disponible
-    from config.settings import bot_config
-    if hasattr(bot_config, 'minecraft_killfeed_channel_id'):
-        await minecraft_cog.setup_killfeed(bot_config.minecraft_killfeed_channel_id) 
+    await bot.add_cog(minecraft_cog) 
