@@ -1,15 +1,6 @@
 import aiohttp
 from typing import Optional, List, Dict, Any
-from .models import MinecraftPlayer, MinecraftPlayerStats, KillData
-
-class KillEvent:
-    """Modèle pour un événement de kill."""
-    def __init__(self, killer: str, victim: str, weapon: str, distance: float, timestamp: int):
-        self.killer = killer
-        self.victim = victim
-        self.weapon = weapon
-        self.distance = distance
-        self.timestamp = timestamp
+from .models import MinecraftPlayer, MinecraftPlayerStats, KillData, KillEvent
 
 class APIError(Exception):
     """Exception personnalisée pour les erreurs API."""

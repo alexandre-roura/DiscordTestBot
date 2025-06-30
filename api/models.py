@@ -3,6 +3,15 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 @dataclass
+class KillEvent:
+    """Modèle pour un événement de kill."""
+    killer: str
+    victim: str
+    weapon: str
+    distance: float
+    timestamp: int
+
+@dataclass
 class MinecraftPlayer:
     """Modèle pour un joueur Minecraft."""
     player_uuid: str
