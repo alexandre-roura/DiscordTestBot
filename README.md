@@ -188,23 +188,32 @@ Le fichier Google Sheets contiendra deux onglets :
 ### Classements
 
 ```bash
-/minecraftranking kda 15    # Top 15 par ratio K/D
-/minecraftranking kills 10  # Top 10 par kills
-/minecraftranking deaths 5  # Top 5 par morts
+# Affiche le top des joueurs selon différents critères
+/minecraftranking kd_ratio 15    # Top 15 par ratio K/D
+/minecraftranking kills 10       # Top 10 par kills
+/minecraftranking deaths 5       # Top 5 par morts
+
+# Les données sont automatiquement synchronisées avec Google Sheets
+# Consultables dans l'onglet "Ranking" du fichier Minecraft_Stats
 ```
 
 ### Killfeed
 
 ```bash
-/killfeedstart   # Démarre le monitoring
-/killfeedstop    # Arrête le monitoring
-/killfeedstatus  # Vérifie le statut
+# Commande unifiée avec choix d'action
+/killfeed start    # Démarre le monitoring
+/killfeed stop     # Arrête le monitoring
+
+# Les kills sont automatiquement :
+# - Affichés dans le canal configuré
+# - Enregistrés dans l'onglet "KillFeed" du Google Sheets
 ```
 
 ### Statistiques
 
 ```bash
-/statsminecraftforplayer NomDuJoueur
+/statsminecraftforplayer NomDuJoueur  # Stats détaillées d'un joueur
+/listminecraftplayers                 # Liste des joueurs en ligne
 ```
 
 ## 🔧 Intégration de Nouvelles Fonctionnalités
