@@ -173,3 +173,6 @@ dmypy.json
 bot.log
 *.log
 config.local.py 
+
+# Google credentials
+google_credentials.json

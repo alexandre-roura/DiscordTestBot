@@ -6,6 +6,7 @@ from api.minecraft_client import MinecraftAPIClient
 from api.models import MinecraftPlayerStats, RankingType
 from utils.helpers import handle_api_errors
 from services.killfeed_service import KillFeedService
+from services.google_sheets_service import GoogleSheetsService
 from views.minecraft_views import MinecraftViews
 from enum import Enum
 from config.settings import bot_config
@@ -17,6 +18,7 @@ class MinecraftCog(commands.Cog):
         self.bot = bot
         self.api_client = MinecraftAPIClient()
         self.killfeed = None
+        self.sheets_service = GoogleSheetsService()
     
     async def cog_load(self):
         """Appelé quand le Cog est chargé."""
@@ -32,7 +34,9 @@ class MinecraftCog(commands.Cog):
         if self.killfeed:
             await self.killfeed.stop_monitoring()
         await self.api_client.__aexit__(None, None, None)
+
     
+    ### Liste des joueurs ###
     @app_commands.command(name="listminecraftplayers", description="Affiche la liste des joueurs Minecraft")
     @handle_api_errors
     async def list_minecraft_players(self, interaction: discord.Interaction):
@@ -42,6 +46,9 @@ class MinecraftCog(commands.Cog):
         embed = MinecraftViews.create_player_list_embed(players)
         await interaction.followup.send(embed=embed)
     
+
+
+    ### Stats ###
     @app_commands.command(name="statsminecraftforplayer", description="Affiche les stats minecraft d'un joueur")
     @handle_api_errors
     async def stats_minecraft_for_player(self, interaction: discord.Interaction, player_name: str):
@@ -70,7 +77,10 @@ class MinecraftCog(commands.Cog):
         
         embed = MinecraftViews.create_stats_embed(player_name, stats)
         await interaction.followup.send(embed=embed)
-    
+
+
+
+    ### Ranking ###
     @app_commands.command(name="minecraftranking", description="Affiche le classement des joueurs Minecraft")
     @app_commands.describe(
         ranking_type="Type de classement (kd_ratio/kills/deaths)",
@@ -102,9 +112,19 @@ class MinecraftCog(commands.Cog):
             return
         
         ranking_data = await self.get_players_ranking(ranking_enum, limit)
+        
+        # Mettre à jour le classement dans Google Sheets
+        print("Mise à jour du classement dans Google Sheets...")
+        self.sheets_service.update_ranking(ranking_data)
+        print("Mise à jour du classement dans Google Sheets terminée.")
+        
         embed = MinecraftViews.create_ranking_embed(ranking_data, ranking_enum)
         await interaction.followup.send(embed=embed)
-    
+
+
+
+
+    ### Killfeed ###
     @app_commands.command(name="killfeed", description="Active/désactive le suivi des kills dans le canal configuré")
     @app_commands.describe(action="Action à effectuer (start/stop)")
     @app_commands.choices(action=[

@@ -9,6 +9,8 @@ class ModerationCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
     
+
+    ### Warn ###
     @app_commands.command(name="warn", description="Avertir un utilisateur")
     @app_commands.checks.has_permissions(kick_members=True)
     async def warn(self, interaction: discord.Interaction, target: discord.Member):
@@ -16,6 +18,8 @@ class ModerationCog(commands.Cog):
         embed = ModerationViews.create_warn_embed(target)
         await interaction.response.send_message(embed=embed)
     
+
+    ### Ban ###
     @app_commands.command(name="ban", description="Bannir un utilisateur")
     @app_commands.checks.has_permissions(ban_members=True)
     async def ban(self, interaction: discord.Interaction, target: discord.Member, reason: str):
@@ -25,6 +29,8 @@ class ModerationCog(commands.Cog):
         await target.send(f"Tu as été banni pour la raison : {reason} !")
         await target.ban(reason=reason)
     
+
+    ### Unban ###
     @app_commands.command(name="unban", description="Révoque le bannissement d'un utilisateur")
     @app_commands.checks.has_permissions(ban_members=True)
     @app_commands.describe(user_id="L'ID de l'utilisateur à débannir")

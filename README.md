@@ -1,6 +1,6 @@
 # 🤖 Bot Discord - Architecture Modulaire
 
-Bot Discord moderne avec architecture Cogs et typage fort. Intégration avec l'API du plugin **Plan** pour Minecraft et système de killfeed en temps réel.
+Bot Discord moderne avec architecture Cogs et typage fort. Intégration avec l'API du plugin **Plan** pour Minecraft, système de killfeed en temps réel et synchronisation avec Google Sheets.
 
 ## 🏗️ Architecture
 
@@ -13,6 +13,9 @@ DiscordTestBot/
 ├── cogs/                      # Cogs Discord.py
 │   ├── minecraft.py           # Cog pour les commandes Minecraft
 │   └── moderation.py          # Cog pour les commandes de modération
+├── services/                  # Services
+│   ├── killfeed_service.py    # Service de killfeed
+│   └── google_sheets_service.py # Service Google Sheets
 ├── utils/                     # Utilitaires
 │   ├── helpers.py             # Fonctions utilitaires
 │   └── killfeed_manager.py    # Gestionnaire de killfeed
@@ -113,6 +116,44 @@ python bot.py
 - **Modération** : `ban_members`, `kick_members`
 - **Killfeed** : `manage_channels`
 - **Général** : `send_messages`, `embed_links`
+
+## 📊 Google Sheets Integration
+
+Le bot synchronise automatiquement les données avec Google Sheets pour :
+
+- Le classement des joueurs
+- L'historique des kills (killfeed)
+
+### Configuration de Google Sheets
+
+1. **Créer un projet Google Cloud** :
+
+   - Allez sur [Google Cloud Console](https://console.cloud.google.com)
+   - Créez un nouveau projet ou sélectionnez un existant
+   - Activez l'API Google Sheets pour ce projet
+
+2. **Créer un compte de service** :
+
+   - Dans "APIs & Services" > "Credentials"
+   - Cliquez sur "Create Credentials" > "Service Account"
+   - Donnez un nom au compte de service
+   - Attribuez le rôle "Editor"
+   - Créez une clé au format JSON
+
+3. **Configurer les credentials** :
+
+   - Renommez le fichier JSON téléchargé en `google_credentials.json`
+   - Placez-le à la racine du projet (même niveau que `bot.py`)
+
+4. **Créer et partager le Google Sheets** :
+   - Créez un nouveau Google Sheets nommé exactement "Minecraft_Stats"
+   - Partagez-le avec l'email du compte de service (trouvable dans `google_credentials.json`)
+   - Donnez les droits d'édition au compte de service
+
+Le fichier Google Sheets contiendra deux onglets :
+
+- **Ranking** : Classement des joueurs (Rang, Joueur, Kills, Morts, K/D Ratio)
+- **KillFeed** : Historique des kills (Timestamp, Tueur, Victime, Arme, Distance)
 
 ## 🏛️ Bonnes Pratiques
 

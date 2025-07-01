@@ -3,6 +3,7 @@ import discord
 from datetime import datetime
 from api.minecraft_client import MinecraftAPIClient, KillEvent
 from views.minecraft_views import MinecraftViews
+from services.google_sheets_service import GoogleSheetsService
 
 class KillFeedService:
     """Service de monitoring du killfeed."""
@@ -14,7 +15,11 @@ class KillFeedService:
         self.monitoring_task = None
         self.last_kill_timestamp = 0
         self.check_interval = 30  # secondes
+        self.sheets_service = GoogleSheetsService()
     
+
+    
+    ### Start/Stop Monitoring ###
     async def start_monitoring(self):
         """Démarre le monitoring du killfeed."""
         if self.is_monitoring:
@@ -40,6 +45,9 @@ class KillFeedService:
         channel_name = self.channel.mention if self.channel else "le canal"
         return True, f"Killfeed arrêté dans {channel_name}"
     
+
+
+    ### Monitoring ###
     async def _monitor_kills(self):
         """Boucle de monitoring des kills."""
         while self.is_monitoring:
@@ -56,11 +64,13 @@ class KillFeedService:
                 if kills:
                     self.last_kill_timestamp = max(kill.timestamp for kill in kills)
                 
-                # Afficher les nouveaux kills
+                # Afficher les nouveaux kills et les enregistrer dans Google Sheets
                 if self.is_monitoring:
                     for kill in new_kills:
                         embed = MinecraftViews.create_killfeed_embed(kill)
                         await self.channel.send(embed=embed)
+                        # Enregistrer dans Google Sheets
+                        self.sheets_service.log_kill(kill)
                 
             except Exception as e:
                 print(f"Erreur lors du monitoring des kills: {e}")
